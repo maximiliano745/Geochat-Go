@@ -16,6 +16,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"golang.org/x/crypto/bcrypt"
+	//"github.com/maximiliano745/Geochat-Go/pkg/websocket"
 )
 
 var SECRET_KEY = []byte("gosecretkey")
