@@ -61,7 +61,9 @@ func userLogin(response http.ResponseWriter, request *http.Request) {
 
 	json.NewDecoder(request.Body).Decode(&user)
 
+	fmt.Println("")
 	fmt.Println("\n --------------> Aca estamos en el Login.  <---------------- ")
+	fmt.Println("")
 
 	collection := client.Database("geochat").Collection("user")
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
@@ -157,17 +159,26 @@ func userEmail(response http.ResponseWriter, request *http.Request) {
 	}
 }
 
-func serveWs(w http.ResponseWriter, r *http.Request) {
-	ws, err := websocket.Upgrade(w, r)
+func serveWs(pool *websocket.Pool, w http.ResponseWriter, r *http.Request) {
+	fmt.Println("    Punto Final de websocket     ")
+	conn, err := websocket.Upgrade(w, r)
 	if err != nil {
-		fmt.Fprintf(w, "%+V\n", err)
+		fmt.Fprintf(w, "%+v\n", err)
 	}
-	go websocket.Writer(ws)
-	websocket.Reader(ws)
+
+	client := &websocket.Client{
+		Conn: conn,
+		Pool: pool,
+	}
+
+	pool.Register <- client
+	client.Read()
 }
 
-func setupRoutes(w http.ResponseWriter, r *http.Request) {
-	http.HandleFunc("/ws", serveWs)
+func rutas(w http.ResponseWriter, r *http.Request) {
+	pool := websocket.NewPool()
+	go pool.Start()
+	serveWs(pool, w, r)
 }
 
 var client *mongo.Client
@@ -184,10 +195,13 @@ func main() {
 	client, _ = mongo.Connect(ctx, options.Client().ApplyURI("mongodb://localhost:27017"))
 	cancel()
 
+	//setupRoutes()
+
 	router.HandleFunc("/api/user/login", userLogin).Methods("POST")
 	router.HandleFunc("/api/user/signup", userSignup).Methods("POST")
 	router.HandleFunc("/api/user/mail", userEmail).Methods("POST")
-	router.HandleFunc("/ws", setupRoutes) //
+
+	router.HandleFunc("/ws", rutas) //
 
 	port := "8080"
 	log.Println("Aplication Comenzo en: " + port)
