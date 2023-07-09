@@ -16,7 +16,8 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"golang.org/x/crypto/bcrypt"
-	//"github.com/maximiliano745/Geochat-Go/pkg/websocket"
+
+	"github.com/maximiliano745/Geochat-Go/pkg/websocket"
 )
 
 var SECRET_KEY = []byte("gosecretkey")
@@ -156,12 +157,18 @@ func userEmail(response http.ResponseWriter, request *http.Request) {
 	}
 }
 
-// type Result struct {
-// 	usecase.Result
-// }
-// type UseCase struct {
-// 	usecase.UseCase
-// }
+func serveWs(w http.ResponseWriter, r *http.Request) {
+	ws, err := websocket.Upgrade(w, r)
+	if err != nil {
+		fmt.Fprintf(w, "%+V\n", err)
+	}
+	go websocket.Writer(ws)
+	websocket.Reader(ws)
+}
+
+func setupRoutes(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/ws", serveWs)
+}
 
 var client *mongo.Client
 
@@ -180,7 +187,7 @@ func main() {
 	router.HandleFunc("/api/user/login", userLogin).Methods("POST")
 	router.HandleFunc("/api/user/signup", userSignup).Methods("POST")
 	router.HandleFunc("/api/user/mail", userEmail).Methods("POST")
-	//router.HandleFunc("/ws", serveWs) //
+	router.HandleFunc("/ws", setupRoutes) //
 
 	port := "8080"
 	log.Println("Aplication Comenzo en: " + port)

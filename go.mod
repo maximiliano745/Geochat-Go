@@ -1,4 +1,4 @@
-module geochat.com
+module github.com/maximiliano745/Geochat-Go
 
 go 1.20
 
