@@ -63,7 +63,7 @@ func userLogin(response http.ResponseWriter, request *http.Request) {
 	json.NewDecoder(request.Body).Decode(&user)
 
 	fmt.Println("")
-	fmt.Println("\n --------------> Aca estamos en el Login.  <---------------- ")
+	fmt.Println("\n -------------- Aca estamos en el Login. ---------------- ")
 	fmt.Println("")
 
 	collection := client.Database("geochat").Collection("user")
@@ -73,8 +73,8 @@ func userLogin(response http.ResponseWriter, request *http.Request) {
 
 	if err == nil {
 
-		fmt.Println("Email Existente..> error==nill => ", err)
-		//response.Write([]byte(`{"message": Email Existente......"` + `"}`))
+		fmt.Println("Login Email Existente...")
+		response.Write([]byte(`{"message": Email Existente......"` + `"}`))
 
 		userPass := []byte(user.Password)
 		dbPass := []byte(dbuser.Password)
@@ -88,11 +88,11 @@ func userLogin(response http.ResponseWriter, request *http.Request) {
 		}
 		jwtToken, err := GenerateJWT()
 		if err != nil {
-			//response.WriteHeader(http.StatusInternalServerError)
-			//response.Write([]byte(`{"message":"` + err.Error() + `"}`))
+			response.WriteHeader(http.StatusInternalServerError)
+			response.Write([]byte(`{"message":"` + err.Error() + `"}`))
 			return
 		}
-		log.Println("\nUsuario>", user)
+		log.Println("\nUsuario: ", user)
 
 		response.Write([]byte(`{"Usuario":"` + user.Email + `"}`))
 		response.Write([]byte(`{"token":"` + jwtToken + `"}`))
@@ -100,7 +100,7 @@ func userLogin(response http.ResponseWriter, request *http.Request) {
 
 		return
 	} else {
-		fmt.Println("Email Inexistente......", "------------------>", err)
+		fmt.Println("Login Email Inexistente: ", err)
 		response.Write([]byte(`{false}`))
 		return
 
@@ -123,8 +123,8 @@ func userSignup(response http.ResponseWriter, request *http.Request) {
 	cancel()
 
 	if err == nil {
-		fmt.Println("Email Existente......", "------------------>", err)
-		response.Write([]byte(`{"message": Email Existente......"` + `"}`))
+		fmt.Println("Signuo Email Existente: ", err)
+		response.Write([]byte(`{"message": Email Existente"` + `"}`))
 		return
 	} else {
 
@@ -134,8 +134,8 @@ func userSignup(response http.ResponseWriter, request *http.Request) {
 		cancel()
 		result, _ := collection.InsertOne(ctx, user)
 		json.NewEncoder(response).Encode(result)
-		fmt.Println("Guardado Con Exito......")
-		response.Write([]byte(`{"message": Guardado Con Exito......"` + `"}`))
+		fmt.Println("Signup: Guardado Con Exito......")
+		response.Write([]byte(`{"message": Signup Guardado Con Exito"` + `"}`))
 	}
 
 }
@@ -161,7 +161,7 @@ func userEmail(response http.ResponseWriter, request *http.Request) {
 }
 
 func serveWs(pool *websocket.Pool, w http.ResponseWriter, r *http.Request) {
-	fmt.Println("WebSocket Endpoint Hit")
+	fmt.Println("----------------  WebSocket Endpoint Hit -------------------")
 	conn, err := websocket.Upgrade(w, r)
 	if err != nil {
 		fmt.Fprintf(w, "%+v\n", err)
