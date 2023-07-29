@@ -64,7 +64,7 @@ func userLogin(response http.ResponseWriter, request *http.Request) {
 
 	fmt.Println("")
 	fmt.Println("\n -------------- Aca estamos en el Login. ---------------- ")
-	fmt.Println("")
+	//fmt.Println("------------mail: ", user.Email)
 
 	collection := client.Database("geochat").Collection("user")
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
@@ -92,7 +92,9 @@ func userLogin(response http.ResponseWriter, request *http.Request) {
 			response.Write([]byte(`{"message":"` + err.Error() + `"}`))
 			return
 		}
-		log.Println("\nUsuario: ", user)
+
+		log.Println("\nUsuario: ", user.Email+"\n\n")
+		//log.Println("-------------------------------------------------------------")
 
 		response.Write([]byte(`{"Usuario":"` + user.Email + `"}`))
 		response.Write([]byte(`{"token":"` + jwtToken + `"}`))
@@ -123,17 +125,18 @@ func userSignup(response http.ResponseWriter, request *http.Request) {
 	cancel()
 
 	if err == nil {
-		fmt.Println("Signuo Email Existente: ", err)
+		fmt.Println("Sign-up Email Existente: ", err)
 		response.Write([]byte(`{"message": Email Existente"` + `"}`))
 		return
 	} else {
 
 		user.Password = getHash([]byte(user.Password))
+
 		collection := client.Database("geochat").Collection("user")
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-		cancel()
 		result, _ := collection.InsertOne(ctx, user)
 		json.NewEncoder(response).Encode(result)
+		cancel()
 		fmt.Println("Signup: Guardado Con Exito......")
 		response.Write([]byte(`{"message": Signup Guardado Con Exito"` + `"}`))
 	}
