@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"net/smtp"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt"
@@ -36,6 +37,11 @@ type Email struct {
 	Msg   string `json:"message" bson:"message"`
 }
 
+type Task struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
 func getHash(pwd []byte) string {
 	hash, err := bcrypt.GenerateFromPassword(pwd, bcrypt.MinCost)
 	if err != nil {
@@ -54,7 +60,79 @@ func GenerateJWT() (string, error) {
 	return tokenString, nil
 }
 
+// Login Native------------------------------------------------------------------------- NATIVO------------
+func userLoginNative(w http.ResponseWriter, r *http.Request) {
+
+	var status bool
+	var msg string
+
+	fmt.Println("\n -------------- Aca estamos en el Login Nativo. ---------------- ")
+
+	if r.Method != http.MethodPost {
+		msg = "Error metodo request"
+		http.Error(w, "Error metodo request", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var formData User
+	if err := json.NewDecoder(r.Body).Decode(&formData); err != nil {
+		msg = "Error NewDecorer..."
+		http.Error(w, "Bad request", http.StatusBadRequest)
+		return
+	}
+
+	fmt.Println("Email:", formData.Email)
+	fmt.Println("Password:", formData.Password)
+
+	// Incluir el correo electrónico en las reclamaciones
+	claims := jwt.MapClaims{
+		"email": formData.Email,
+		"exp":   time.Now().Add(time.Hour * 24).Unix(), // Caducidad del token
+	}
+
+	// Generar el token JWT con las reclamaciones
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	mySecret := "secret-secret"
+	signedToken, err := token.SignedString([]byte(mySecret))
+	if err != nil {
+		msg = "Error al generar el token"
+		http.Error(w, "Error al generar el token", http.StatusInternalServerError)
+		return
+	} else {
+		fmt.Println("signedToken :" + signedToken)
+		//fmt.Println("Token: ", token)
+	}
+
+	responseData := map[string]interface{}{
+
+		"status": status,
+		"msg":    msg,
+		"token":  signedToken, // Envía el token firmado en la respuesta
+	}
+
+	// Convertir el mapa a formato JSON
+	jsonResponse, err := json.Marshal(responseData)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		msg = "Error al generar respuesta JSON"
+		http.Error(w, "Error al generar respuesta JSON", http.StatusInternalServerError)
+		return
+	}
+
+	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
+		fmt.Println("aca claims: ", claims["email"], claims["exp"])
+	}
+
+	// Establecer la cabecera Content-Type y enviar la respuesta JSON al cliente
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(jsonResponse)
+}
+
 func userLogin(response http.ResponseWriter, request *http.Request) {
+
+	var status bool
+	var msg string
+	var nombre string
 
 	response.Header().Set("Content-Type", "application/json")
 	var user User
@@ -71,10 +149,17 @@ func userLogin(response http.ResponseWriter, request *http.Request) {
 	err := collection.FindOne(ctx, bson.M{"email": user.Email}).Decode(&dbuser)
 	cancel()
 
+	fmt.Println(dbuser.FirstName)
+	nombre = dbuser.FirstName
+
+	responseData := make(map[string]interface{})
+
 	if err == nil {
 
+		status = true
 		fmt.Println("Login Email Existente...")
-		response.Write([]byte(`{"message": Email Existente......"` + `"}`))
+		msg = "Login Email Existente..."
+		//response.Write([]byte(`{"message": Email Existente......"` + `"}`))
 
 		userPass := []byte(user.Password)
 		dbPass := []byte(dbuser.Password)
@@ -83,27 +168,72 @@ func userLogin(response http.ResponseWriter, request *http.Request) {
 
 		if passErr != nil {
 			log.Println("passErr: ", passErr)
-			response.Write([]byte(`{false}`))
+			msg = "error con el password...."
+			//response.Write([]byte(`{false}`))
 			return
 		}
 		jwtToken, err := GenerateJWT()
 		if err != nil {
 			response.WriteHeader(http.StatusInternalServerError)
-			response.Write([]byte(`{"message":"` + err.Error() + `"}`))
+			//response.Write([]byte(`{"message":"` + err.Error() + `"}`))
+			msg = "error con el password...."
+			response.Write([]byte(msg))
+
 			return
 		}
 
-		log.Println("\nUsuario: ", user.Email+"\n\n")
+		log.Println("mail: ", user.Email)
+		log.Println("token: ", jwtToken)
+		log.Println("status: ", status)
+		log.Println("msg: ", msg)
+
 		//log.Println("-------------------------------------------------------------")
 
-		response.Write([]byte(`{"Usuario":"` + user.Email + `"}`))
-		response.Write([]byte(`{"token":"` + jwtToken + `"}`))
-		response.Write([]byte(`{"true"}`))
+		//response.Write([]byte(`{"Usuario":"` + user.Email + `"}`))
+		//response.Write([]byte(`{"token":"` + jwtToken + `"}`))
+		//response.Write([]byte(`{"true"}`))
+
+		responseData["status"] = status
+		responseData["msg"] = msg
+		responseData["mail"] = user.Email
+		responseData["token"] = jwtToken
+		responseData["nombre"] = nombre
+
+		// Convertir el mapa a formato JSON
+		jsonResponse, err := json.Marshal(responseData)
+		if err != nil {
+			response.WriteHeader(http.StatusInternalServerError)
+			response.Write([]byte(`{"message":"Error al generar respuesta JSON"}`))
+			return
+		}
+
+		// Enviar la respuesta JSON al cliente
+		response.Header().Set("Content-Type", "application/json")
+		response.Write(jsonResponse)
 
 		return
 	} else {
+		status = false
 		fmt.Println("Login Email Inexistente: ", err)
-		response.Write([]byte(`{false}`))
+		msg = "Login Email Inexistente..."
+		//response.Write([]byte(`{false}`))
+		log.Println("status: ", status)
+		log.Println("msg: ", status)
+
+		responseData["status"] = status
+		responseData["msg"] = msg
+
+		jsonResponse, err := json.Marshal(responseData)
+		if err != nil {
+			response.WriteHeader(http.StatusInternalServerError)
+			response.Write([]byte(`{"message":"Error al generar respuesta JSON"}`))
+			return
+		}
+
+		// Enviar la respuesta JSON al cliente
+		response.Header().Set("Content-Type", "application/json")
+		response.Write(jsonResponse)
+
 		return
 
 	}
@@ -159,6 +289,7 @@ func userEmail(response http.ResponseWriter, request *http.Request) {
 	if err != nil {
 		log.Fatal(err)
 	} else {
+
 		fmt.Println("Email enviado con exito...!!!!!")
 	}
 }
@@ -179,7 +310,147 @@ func serveWs(pool *websocket.Pool, w http.ResponseWriter, r *http.Request) {
 	client.Read()
 }
 
+//---------------------------------------------------------------------------------------------------
+
+func getTasksHandler(w http.ResponseWriter, r *http.Request) {
+	// Convertir el slice de tareas a JSON
+	jsonData, err := json.Marshal(tasks)
+	fmt.Println("Get Tareas---> ")
+	if err != nil {
+		log.Println("Error al convertir a JSON:", err)
+		http.Error(w, "Error al convertir a JSON", http.StatusInternalServerError)
+		return
+	}
+
+	// Establecer la cabecera del tipo de contenido a JSON
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(jsonData)
+}
+
+func addTaskHandler(w http.ResponseWriter, r *http.Request) {
+	var task Task
+	err := json.NewDecoder(r.Body).Decode(&task)
+	if err != nil {
+		log.Println("Error al decodificar la tarea:", err)
+		http.Error(w, "Error al decodificar la tarea", http.StatusBadRequest)
+		return
+	}
+
+	// Asignar un ID único a la tarea (puedes usar un UUID u otra estrategia)
+	task.ID = "ID_" + task.Name
+
+	// Agregar la tarea al slice de tareas
+	tasks = append(tasks, task)
+
+	// Responder con la tarea agregada
+	jsonData, err := json.Marshal(task)
+	if err != nil {
+		log.Println("Error al convertir a JSON:", err)
+		http.Error(w, "Error al convertir a JSON", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	w.Write(jsonData)
+	fmt.Println("Tarea Nueva asignada...")
+
+}
+
+//-------------------------------------------------------------------------------------------
+
+func backgroundTask() {
+	for {
+		fmt.Println("Haciendo tarea....")
+		time.Sleep(time.Minute) // Cambia esto al intervalo de tiempo deseado
+	}
+}
+
+func VerifyToken(tokenString string) (*jwt.Token, error) {
+	fmt.Println("--------------------------------- Aca la verificacion del token de rutas-----------------")
+	mySecret := "secret-secret"
+
+	// Analiza el token con la clave secreta
+	token, err := jwt.Parse(tokenString,
+		func(token *jwt.Token) (interface{}, error) {
+			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+				fmt.Println("método de firma inesperado")
+				return nil, fmt.Errorf("método de firma inesperado: %v", token.Header["bearer "])
+
+			}
+
+			return []byte(mySecret), nil
+		})
+
+	if err != nil {
+		fmt.Println("Error: ", err)
+		return nil, err
+	}
+
+	if _, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
+		fmt.Println("Token de Ruta ok !!!......")
+		return token, nil
+	} else {
+		fmt.Println("Token de Ruta INVALIDO ...")
+		return nil, fmt.Errorf("token inválido")
+	}
+}
+
+func protectedEndpoint(response http.ResponseWriter, request *http.Request) {
+
+	/* 	var formData User
+	   	if err := json.NewDecoder(request.Body).Decode(&formData); err != nil {
+	   		http.Error(response, "Bad request", http.StatusBadRequest)
+	   		return
+	   	}
+
+	   	fmt.Println("token:", formData)
+	*/
+	// Obtener el token del encabezado de la solicitud
+
+	tokenHeader := request.Header.Get("Authorization")
+	//fmt.Println("tokenHeader  ------> : ", tokenHeader)
+	if tokenHeader == "" {
+		http.Error(response, "Token no proporcionado", http.StatusUnauthorized)
+		return
+	}
+
+	// Elimina la palabra "Bearer " del tokenString si está presente
+	if strings.HasPrefix(tokenHeader, "Bearer ") {
+		tokenHeader = strings.TrimPrefix(tokenHeader, "Bearer ")
+	}
+
+	// Verificar el token
+	token, err := VerifyToken(tokenHeader)
+	if err != nil {
+		fmt.Println("Token Valido....")
+		http.Error(response, "Token inválido", http.StatusUnauthorized)
+		return
+	} else {
+		fmt.Println("Token Valido", token)
+	}
+
+	// Devolver una respuesta exitosa al cliente
+	responseData := map[string]interface{}{
+		"message": "Solicitud exitosa en la ruta protegida",
+	}
+
+	// Convertir el mapa a formato JSON
+	jsonResponse, err := json.Marshal(responseData)
+	if err != nil {
+		http.Error(response, "Error al generar respuesta JSON", http.StatusInternalServerError)
+		return
+	} else {
+		fmt.Println("Solicitud exitosa en la ruta protegida")
+	}
+
+	// Enviar la respuesta JSON al cliente
+	response.Header().Set("Content-Type", "application/json")
+	response.Write(jsonResponse)
+}
+
 var client *mongo.Client
+var tasks []Task
 
 func main() {
 
@@ -190,18 +461,32 @@ func main() {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	client, _ = mongo.Connect(ctx, options.Client().ApplyURI("mongodb://localhost:27017"))
+	//client, _ = mongo.Connect(ctx, options.Client().ApplyURI("mongodb://181.191.65.250:27017"))
 	cancel()
 
 	router := mux.NewRouter()
-	router.HandleFunc("/api/user/login", userLogin).Methods("GET")
+	//router.HandleFunc("/api/user/login", userLogin).Methods("GET")
+	router.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, "Bienvenidos a Geochat Backend")
+	})
 	http.Handle("/", router)
 
 	router.HandleFunc("/api/user/login", userLogin).Methods("POST")
 	router.HandleFunc("/api/user/signup", userSignup).Methods("POST")
 	router.HandleFunc("/api/user/mail", userEmail).Methods("POST")
 
+	//router.HandleFunc("/api/tasks", getTasksHandler)    // Get Tarea
+	//router.HandleFunc("/api/tasks/add", addTaskHandler) // ADD Tarea de fondo....
+
+	//------------------------------------------------------------------------------
+
+	router.HandleFunc("/api/user/native/login", userLoginNative).Methods("POST")
+	router.HandleFunc("/api/some/protected/endpoint", protectedEndpoint).Methods("POST")
+
 	pool := websocket.NewPool()
 	go pool.Start()
+
+	go backgroundTask()
 
 	router.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
 		serveWs(pool, w, r)
