@@ -462,9 +462,9 @@ func main() {
 	})
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	//client, _ = mongo.Connect(ctx, options.Client().ApplyURI("mongodb://maxi:123@181.191.65.250:27017/geochat"))
-	client, _ = mongo.Connect(ctx, options.Client().ApplyURI("mongodb://localhost:27017/geochat"))
-	//client, _ = mongo.Connect(ctx, options.Client().ApplyURI("mongodb://181.191.65.250:27017/geochat"))
+	//client, _ = mongo.Connect(ctx, options.Client().ApplyURI("mongodb://maxi:123@181.191.65.250:27017/geochat/"))
+	client, _ = mongo.Connect(ctx, options.Client().ApplyURI("mongodb://localhost:27017/geochat/"))
+	//client, _ = mongo.Connect(ctx, options.Client().ApplyURI("mongodb://181.191.65.250:27017/geochat/"))
 	cancel()
 
 	router := mux.NewRouter()
