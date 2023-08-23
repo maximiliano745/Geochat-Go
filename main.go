@@ -455,8 +455,10 @@ var tasks []Task
 func main() {
 
 	c := cors.New(cors.Options{
-		AllowedOrigins: []string{"*"},                  // All origins
-		AllowedMethods: []string{"GET", "POST", "PUT"}, // Allowing only get, just an example
+		//AllowedOrigins:   []string{"http://localhost:3000"}, // Cambia esto según las URL de origen que deseas permitir
+		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE"},
+		AllowCredentials: true,
+		AllowedOrigins:   []string{"*"}, // All origins
 	})
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
